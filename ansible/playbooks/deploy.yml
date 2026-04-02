@@ -1,0 +1,184 @@
+---
+# Deploy sewdl MERN app to Ubuntu 22.04: MongoDB, Node 20, PM2, optional Nginx.
+# From repo root (recommended):
+#   cd ansible
+#   ansible-playbook -i inventory/production.ini playbooks/deploy.yml \
+#     -e sewdl_jwt_secret='***' -e sewdl_git_repo='https://github.com/org/sewdl.git' \
+#     -e sewdl_cors_origin='http://YOUR_APP_IP_OR_DOMAIN'
+#
+# Required extra var: sewdl_jwt_secret
+
+- name: Deploy sewdl to EC2
+  hosts: sewdl_app
+  become: true
+
+  pre_tasks:
+    - name: Require sewdl_jwt_secret
+      ansible.builtin.assert:
+        that:
+          - sewdl_jwt_secret is defined
+          - (sewdl_jwt_secret | length) > 0
+        fail_msg: "Pass -e sewdl_jwt_secret=... (or define in vault / group_vars)."
+
+  tasks:
+    - name: Install base packages
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - git
+          - acl
+        state: present
+        update_cache: true
+
+    - name: Add MongoDB 7.0 APT keyring
+      ansible.builtin.shell: |
+        set -euo pipefail
+        curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg
+      args:
+        creates: /usr/share/keyrings/mongodb-server-7.0.gpg
+
+    - name: Add MongoDB 7.0 repository
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/mongodb-org-7.0.list
+        content: |
+          deb [ signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse
+        mode: "0644"
+      register: mongodb_repo
+
+    - name: Add NodeSource setup for Node.js 20.x
+      ansible.builtin.shell: |
+        set -euo pipefail
+        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+      args:
+        creates: /etc/apt/sources.list.d/nodesource.list
+      register: nodesource_setup
+
+    - name: Update apt cache after adding repos
+      ansible.builtin.apt:
+        update_cache: true
+      when: mongodb_repo is changed or nodesource_setup is changed
+
+    - name: Install MongoDB and Node.js
+      ansible.builtin.apt:
+        name:
+          - mongodb-org
+          - nodejs
+        state: present
+
+    - name: Ensure MongoDB is enabled and started
+      ansible.builtin.service:
+        name: mongod
+        state: started
+        enabled: true
+
+    - name: Install PM2 globally
+      ansible.builtin.command:
+        argv:
+          - npm
+          - install
+          - -g
+          - pm2
+      changed_when: true
+
+    - name: Ensure deploy directory exists
+      ansible.builtin.file:
+        path: "{{ sewdl_deploy_path }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0755"
+
+    - name: Clone or update application repository
+      ansible.builtin.git:
+        repo: "{{ sewdl_git_repo }}"
+        dest: "{{ sewdl_deploy_path }}"
+        version: "{{ sewdl_git_branch }}"
+        update: true
+      become_user: "{{ ansible_user }}"
+
+    - name: Deploy backend/root .env
+      ansible.builtin.template:
+        src: env-root.j2
+        dest: "{{ sewdl_deploy_path }}/.env"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0600"
+
+    - name: Deploy frontend/.env for Vite build
+      ansible.builtin.template:
+        src: env-frontend.j2
+        dest: "{{ sewdl_deploy_path }}/frontend/.env"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0600"
+
+    - name: Install npm dependencies (runs postinstall frontend build)
+      ansible.builtin.command:
+        argv:
+          - npm
+          - ci
+        chdir: "{{ sewdl_deploy_path }}"
+      become_user: "{{ ansible_user }}"
+
+    - name: Start or reload application with PM2
+      ansible.builtin.shell: |
+        set -euo pipefail
+        cd "{{ sewdl_deploy_path }}"
+        pm2 delete sewdl-backend 2>/dev/null || true
+        pm2 start ecosystem.config.js --env production --update-env
+        pm2 save
+      become_user: "{{ ansible_user }}"
+      args:
+        executable: /bin/bash
+
+    - name: Install Nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+      when: sewdl_install_nginx | default(true) | bool
+
+    - name: Configure Nginx reverse proxy
+      ansible.builtin.template:
+        src: nginx-sewdl.conf.j2
+        dest: /etc/nginx/sites-available/sewdl
+        mode: "0644"
+      when: sewdl_install_nginx | default(true) | bool
+      notify: Restart nginx
+
+    - name: Enable Nginx site
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/sewdl
+        dest: /etc/nginx/sites-enabled/sewdl
+        state: link
+      when: sewdl_install_nginx | default(true) | bool
+      notify: Restart nginx
+
+    - name: Remove default Nginx site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      when: sewdl_install_nginx | default(true) | bool
+      notify: Restart nginx
+
+    - name: Validate Nginx configuration
+      ansible.builtin.command: nginx -t
+      when: sewdl_install_nginx | default(true) | bool
+      changed_when: false
+
+    - name: Flush handlers (restart Nginx after valid config)
+      meta: flush_handlers
+
+    - name: Ensure Nginx is enabled and running
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
+      when: sewdl_install_nginx | default(true) | bool
+
+  handlers:
+    - name: Restart nginx
+      ansible.builtin.service:
+        name: nginx
+        state: restarted

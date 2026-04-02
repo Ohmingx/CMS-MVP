@@ -10,7 +10,8 @@ module.exports = {
       },
       env_production: {
         NODE_ENV: "production",
-        PORT: 80,
+        // Bind on 5000 so PM2 does not require root; use Nginx on :80 → :5000 (see ansible/templates)
+        PORT: 5000,
       }
     }
   ]
