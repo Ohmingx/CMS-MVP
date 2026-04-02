@@ -2,9 +2,16 @@ pipeline {
     agent any
 
     stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/Ohmingx/CMS-MVP'
+            }
+        }
+
         stage('Debug') {
             steps {
-                echo "Jenkinsfile is executing"
+                sh 'ls -la'
+                echo "Now Jenkinsfile is executing"
             }
         }
     }
