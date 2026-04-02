@@ -1,0 +1,5 @@
+export { default as MenuView } from './MenuView'
+export { default as CartView } from './CartView'
+export { default as MyOrders } from './MyOrders'
+export { default as FeedbackForm } from './FeedbackForm'
+export { default as AnnouncementsView } from './AnnouncementsView'
