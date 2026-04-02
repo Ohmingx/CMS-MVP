@@ -14,7 +14,7 @@ pipeline {
     parameters {
         string(
             name: 'SEWDL_CORS_ORIGIN',
-            defaultValue: 'http://REPLACE_WITH_APP_URL',
+            defaultValue: 'http://13.206.83.23',
             description: 'Public browser origin for CORS (e.g. http://EC2_PUBLIC_IP or http://your-domain).'
         )
     }
@@ -22,7 +22,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
+                git 'https://github.com/Ohmingx/CMS-MVP'
             }
         }
 
