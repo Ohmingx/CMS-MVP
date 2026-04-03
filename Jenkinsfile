@@ -28,11 +28,23 @@ pipeline {
         }
 
         stage('Build') {
-            steps {
-                sh 'npm ci'
-                sh 'npm run build --workspace=frontend'
-            }
+    steps {
+        retry(2) {
+            sh '''
+            set -e
+
+            echo "Cleaning workspace..."
+            rm -rf node_modules package-lock.json
+
+            echo "Installing dependencies..."
+            npm install
+
+            echo "Building frontend..."
+            npm run build --workspace=frontend
+            '''
         }
+    }
+}
 
         stage('Deploy') {
             steps {
