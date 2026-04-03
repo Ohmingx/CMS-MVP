@@ -1,5 +1,6 @@
 const dotenv = require('dotenv');
 const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -37,9 +38,18 @@ app.use('/api', sharedRouter);
 
 // Serve frontend in production
 if (process.env.NODE_ENV === 'production') {
-	app.use(express.static(path.join(__dirname, '../../frontend/dist')));
-	app.get('*', (req, res) => {
-		res.sendFile(path.resolve(__dirname, '../../frontend/dist', 'index.html'));
+	// Prefer prebuilt bundle checked into backend/public for simple EC2 deploys.
+	// Fallback to frontend/dist for local monorepo builds.
+	const bundledFrontendPath = path.join(__dirname, '../public');
+	const monorepoFrontendDistPath = path.join(__dirname, '../../frontend/dist');
+	const frontendPath = fs.existsSync(path.join(bundledFrontendPath, 'index.html'))
+		? bundledFrontendPath
+		: monorepoFrontendDistPath;
+
+	app.use(express.static(frontendPath));
+	// Use regex for Express 5 compatibility (string '*' throws in path-to-regexp).
+	app.get(/.*/, (_req, res) => {
+		res.sendFile(path.resolve(frontendPath, 'index.html'));
 	});
 }
 
