@@ -22,7 +22,7 @@ const app = express();
 app.use(helmet());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173', credentials: true }));
+app.use(cors({ origin: process.env.CORS_ORIGIN || '*', credentials: true }));
 app.use(morgan('dev'));
 
 // Health check
@@ -36,22 +36,8 @@ app.use('/api/admin', adminRouter);
 app.use('/api/staff', staffRouter);
 app.use('/api', sharedRouter);
 
-// Serve frontend in production
-if (process.env.NODE_ENV === 'production') {
-	// Prefer prebuilt bundle checked into backend/public for simple EC2 deploys.
-	// Fallback to frontend/dist for local monorepo builds.
-	const bundledFrontendPath = path.join(__dirname, '../public');
-	const monorepoFrontendDistPath = path.join(__dirname, '../../frontend/dist');
-	const frontendPath = fs.existsSync(path.join(bundledFrontendPath, 'index.html'))
-		? bundledFrontendPath
-		: monorepoFrontendDistPath;
-
-	app.use(express.static(frontendPath));
-	// Use regex for Express 5 compatibility (string '*' throws in path-to-regexp).
-	app.get(/.*/, (_req, res) => {
-		res.sendFile(path.resolve(frontendPath, 'index.html'));
-	});
-}
+// Static frontend serving has been removed. 
+// In production, an Nginx reverse proxy handles static assets and routes /api to this server.
 
 // Global error handler
 // eslint-disable-next-line no-unused-vars

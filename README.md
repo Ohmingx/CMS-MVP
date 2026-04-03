@@ -1,61 +1,38 @@
-# CMS-MVP
+# CMS-MVP (Canteen Management System)
 
-MERN canteen app monorepo (`frontend` + `backend`) with a simplified EC2-first deployment.
+An optimized, scalable, and responsive Fullstack architecture constructed using the **MERN** *(MongoDB, Express, React, Node.js)* stack.
 
-## Local development
+## Architecture Highlights
+This application is formatted as a strict two-folder monolith (`/frontend` and `/backend`). It is explicitly engineered for simple, bare-metal Cloud deployment (e.g. AWS EC2).
 
+## Component Stack
+- **Frontend**: React 18, Vite Bundler, TailwindCSS, Zustand State Management, React Router DOM.
+- **Backend**: Node.js, Express, MongoDB/Mongoose OS, JWT Auth securely configured with Helmet & Cors.
+- **Hosting Utilities**: PM2 ecosystem support for detached, background production execution.
+
+## Feature Breakdown
+* **Role-based Authentication**: JWT integration maps UI portals independently to `admin`, `staff`, or `student` dashboards securely.
+* **Menu Management**: Admins have full control over item instantiation and availability metrics.
+* **Active Queue Ordering**: Students select orders which route directly to Staff portals mapped tightly with feedback cycles. 
+* **Analytic Logging**: Revenue generators and metric analysis dashboard endpoints available exclusively for admin tracking.
+
+## Development
+
+Currently, the frontend and backend are maintained as completely decoupled services. You will need to install dependencies in both folders individually:
+
+### Backend
 ```bash
+cd backend
 npm install
-npm run dev:backend
-npm run dev:frontend
+npm run dev
 ```
 
-## Build frontend bundle for production
-
-This project now deploys using a prebuilt frontend bundle committed under `backend/public`.
-
+### Frontend
 ```bash
-npm run bundle:frontend
+cd frontend
+npm install
+npm run dev
 ```
 
-That command:
-1. Builds `frontend/dist`
-2. Copies the build into `backend/public`
-
-Commit these changes before deploying.
-
-## EC2 deployment (single instance, no Jenkins/Ansible)
-
-Target instance: `13.201.44.89`
-
-### One-time setup on EC2
-
-```bash
-git clone https://github.com/Ohmingx/CMS-MVP.git
-cd CMS-MVP
-chmod +x scripts/ec2-setup.sh scripts/ec2-deploy.sh
-./scripts/ec2-setup.sh
-```
-
-### Every deploy
-
-```bash
-cd ~/CMS-MVP
-./scripts/ec2-deploy.sh
-```
-
-The deploy script will:
-- pull latest `main`
-- create `.env` if missing
-- install **backend-only** dependencies
-- start/restart PM2 app
-- run health check on `127.0.0.1:5000/health`
-
-## Required AWS Security Group rules
-
-- Inbound `22` from your IP
-- Inbound `5000` from `0.0.0.0/0` (or restricted source)
-
-## Production URL
-
-- `http://13.201.44.89:5000`
+## Deployment
+Please refer closely to the `DEPLOYMENT.md` guide for precise steps on how to deploy this manually to a bare-metal Ubuntu EC2 environment without needing Docker, Jenkins, or Ansible.
