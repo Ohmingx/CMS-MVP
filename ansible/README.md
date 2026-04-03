@@ -12,7 +12,7 @@ ansible-playbook -i inventory/production.ini playbooks/deploy.yml \
   --private-key ~/.ssh/sewdl_app \
   -e sewdl_jwt_secret='YOUR_LONG_SECRET' \
   -e sewdl_git_repo='https://github.com/YOUR_ORG/sewdl.git' \
-  -e sewdl_cors_origin='http://13.201.36.66'
+  -e sewdl_cors_origin='http://13.201.44.89'
 ```
 
 ### Jenkins

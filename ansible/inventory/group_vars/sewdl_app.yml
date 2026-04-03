@@ -1,25 +1,15 @@
 ---
 # Override in Jenkins deploy with -e or --extra-vars (see Jenkinsfile).
+
 sewdl_deploy_path: /opt/sewdl
 sewdl_git_branch: main
 
 # Public URL users hit in the browser (CORS).
-sewdl_cors_origin: "http://13.201.36.66"
+sewdl_cors_origin: "http://13.201.44.89"
 
 sewdl_mongodb_uri: "mongodb://127.0.0.1:27017/canteen_db"
 sewdl_app_port: 5000
 sewdl_install_nginx: true
 
-# Set by Jenkins during deploy using the remote.origin.url.
+# Set by Jenkins during deploy using the remote.origin.url (this is a safe default).
 sewdl_git_repo: "https://github.com/REPLACE_ORG/sewdl.git"
----
-# Override in Jenkins deploy with -e or --extra-vars (see Jenkinsfile).
-sewdl_deploy_path: /opt/sewdl
-sewdl_git_branch: main
-# Public URL users hit in the browser (CORS). Example: http://12.34.56.78 or http://your-domain.com
-sewdl_cors_origin: "http://13.206.83.23"
-sewdl_mongodb_uri: "mongodb://127.0.0.1:27017/canteen_db"
-sewdl_app_port: 5000
-sewdl_install_nginx: true
-# Set via Jenkins / CLI: ansible-playbook ... -e sewdl_git_repo=... -e sewdl_jwt_secret=...
-sewdl_git_repo: "https://github.com/Ohmingx/CMS-MVP.git"
