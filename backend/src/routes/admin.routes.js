@@ -1,5 +1,6 @@
 const express = require('express');
 const { authenticate, authorizeRoles } = require('../middleware/auth');
+const upload = require('../middleware/upload');
 const adminController = require('../controllers/admin.controller');
 
 const router = express.Router();
@@ -8,6 +9,7 @@ const router = express.Router();
 router.use(authenticate, authorizeRoles('admin'));
 
 router.post('/menu', adminController.createMenuItem);
+router.post('/menu/upload', upload.single('image'), adminController.uploadImage);
 router.put('/menu/:id', adminController.updateMenuItem);
 router.delete('/menu/:id', adminController.deleteMenuItem);
 router.get('/menu', adminController.getMenuItems);

@@ -4,8 +4,10 @@ import api from '../../api/client'
 export default function MenuManagement() {
 	const [items, setItems] = useState([])
 	const [form, setForm] = useState({ name: '', price: '', description: '' })
+	const [imageFile, setImageFile] = useState(null)
 	const [loading, setLoading] = useState(false)
 	const [editingItem, setEditingItem] = useState(null)
+	const [editingImageFile, setEditingImageFile] = useState(null)
 	
 	async function load() {
 		try {
@@ -22,14 +24,31 @@ export default function MenuManagement() {
 	
 	useEffect(() => { load() }, [])
 	
+	async function uploadImageFetch(file) {
+		const formData = new FormData()
+		formData.append('image', file)
+		const { data } = await api.post('/admin/menu/upload', formData, {
+			headers: { 'Content-Type': 'multipart/form-data' }
+		})
+		return data.imageUrl
+	}
+
 	async function createItem(e) {
 		e.preventDefault()
 		try {
 			setLoading(true)
-			const payload = { name: form.name, price: Number(form.price), description: form.description }
+			let imageUrl = ''
+			if (imageFile) {
+				imageUrl = await uploadImageFetch(imageFile)
+			}
+			const payload = { name: form.name, price: Number(form.price), description: form.description, imageUrl }
 			const { data } = await api.post('/admin/menu', payload)
 			alert('Created: ' + data.item.name)
 			setForm({ name: '', price: '', description: '' })
+			setImageFile(null)
+			// Reset file input by id or simply let component unmount/remount
+			const fileInput = document.getElementById('createImageInput')
+			if (fileInput) fileInput.value = ''
 			load()
 		} catch (e) {
 			alert('Failed to create item: ' + (e?.response?.data?.message || 'Unknown error'))
@@ -41,9 +60,15 @@ export default function MenuManagement() {
 	async function updateItem(item) {
 		try {
 			setLoading(true)
-			await api.put(`/admin/menu/${item._id}`, item)
+			let imageUrl = item.imageUrl
+			if (editingImageFile) {
+				imageUrl = await uploadImageFetch(editingImageFile)
+			}
+			const payload = { ...item, imageUrl }
+			await api.put(`/admin/menu/${item._id}`, payload)
 			alert('Updated: ' + item.name)
 			setEditingItem(null)
+			setEditingImageFile(null)
 			load()
 		} catch (e) {
 			alert('Failed to update item: ' + (e?.response?.data?.message || 'Unknown error'))
@@ -98,6 +123,13 @@ export default function MenuManagement() {
 						placeholder="Description" 
 						className="border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent" 
 					/>
+					<input 
+						id="createImageInput"
+						type="file" 
+						accept="image/*"
+						onChange={e=>setImageFile(e.target.files[0])}
+						className="border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
+					/>
 					<button 
 						disabled={loading}
 						className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-50"
@@ -141,6 +173,15 @@ export default function MenuManagement() {
 											onChange={e => setEditingItem({...editingItem, description: e.target.value})}
 											className="border border-gray-300 p-2 rounded"
 										/>
+										<div className="flex flex-col gap-1 text-sm">
+											<span className="text-gray-500 text-xs">Update Image:</span>
+											<input 
+												type="file" 
+												accept="image/*"
+												onChange={e=>setEditingImageFile(e.target.files[0])}
+												className="border border-gray-300 p-1 rounded text-xs"
+											/>
+										</div>
 										<div className="flex gap-2">
 											<button 
 												onClick={() => updateItem(editingItem)}
@@ -158,17 +199,24 @@ export default function MenuManagement() {
 									</div>
 								) : (
 									<div className="flex items-center justify-between">
-										<div className="flex-1">
-											<div className="flex items-center gap-3">
-												<h4 className="font-semibold text-gray-800">{item.name}</h4>
-												<div className={`px-2 py-1 rounded-full text-xs font-medium ${
-													item.isAvailable ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-												}`}>
-													{item.isAvailable ? 'Available' : 'Unavailable'}
+										<div className="flex-1 flex items-center gap-4">
+											{item.imageUrl ? (
+												<img src={item.imageUrl} alt={item.name} className="w-16 h-16 object-cover rounded-md border border-gray-200" />
+											) : (
+												<div className="w-16 h-16 bg-gray-100 rounded-md flex items-center justify-center text-2xl border border-gray-200">🍕</div>
+											)}
+											<div>
+												<div className="flex items-center gap-3">
+													<h4 className="font-semibold text-gray-800">{item.name}</h4>
+													<div className={`px-2 py-1 rounded-full text-xs font-medium ${
+														item.isAvailable ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+													}`}>
+														{item.isAvailable ? 'Available' : 'Unavailable'}
+													</div>
 												</div>
+												<p className="text-gray-600 text-sm mt-1">{item.description}</p>
+												<p className="text-green-600 font-semibold mt-1">₹{item.price}</p>
 											</div>
-											<p className="text-gray-600 text-sm mt-1">{item.description}</p>
-											<p className="text-green-600 font-semibold mt-1">₹{item.price}</p>
 										</div>
 										<div className="flex gap-2">
 											<button 

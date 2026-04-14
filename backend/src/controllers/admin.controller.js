@@ -3,12 +3,13 @@ const User = require('../models/User');
 const Order = require('../models/Order');
 const Feedback = require('../models/Feedback');
 const Announcement = require('../models/Announcement');
+const { uploadToS3 } = require('../utils/s3');
 
 exports.createMenuItem = async (req, res) => {
 	try {
-		const { name, price, description } = req.body;
+		const { name, price, description, imageUrl } = req.body;
 		if (!name || price === undefined) return res.status(400).json({ message: 'Missing fields' });
-		const item = await MenuItem.create({ name, price, description });
+		const item = await MenuItem.create({ name, price, description, imageUrl });
 		return res.status(201).json({ item });
 	} catch (err) {
 		if (err.code === 11000) return res.status(409).json({ message: 'Item exists' });
@@ -18,16 +19,45 @@ exports.createMenuItem = async (req, res) => {
 
 exports.updateMenuItem = async (req, res) => {
 	try {
-		const { name, price, description, isAvailable } = req.body;
+		const { name, price, description, isAvailable, imageUrl } = req.body;
 		const item = await MenuItem.findByIdAndUpdate(
 			req.params.id,
-			{ $set: { name, price, description, isAvailable } },
+			{ $set: { name, price, description, isAvailable, imageUrl } },
 			{ new: true }
 		);
 		if (!item) return res.status(404).json({ message: 'Not found' });
 		return res.json({ item });
 	} catch (err) {
 		return res.status(500).json({ message: 'Server error' });
+	}
+};
+
+exports.uploadImage = async (req, res) => {
+	try {
+		if (!req.file) {
+			console.error(JSON.stringify({ event: 'UploadFailure', reason: 'No file provided in request' }));
+			return res.status(400).json({ message: 'No image file provided' });
+		}
+		
+		const imageUrl = await uploadToS3(req.file.buffer, req.file.mimetype, req.file.originalname);
+		
+		// Structured log for CloudWatch
+		console.log(JSON.stringify({
+			event: 'ImageUploadSuccess',
+			imageUrl,
+			filename: req.file.originalname,
+			size: req.file.size
+		}));
+		
+		return res.status(200).json({ imageUrl });
+	} catch (err) {
+		// Structured log for CloudWatch
+		console.error(JSON.stringify({
+			event: 'ImageUploadError',
+			error: err.message,
+			stack: err.stack
+		}));
+		return res.status(500).json({ message: 'Failed to upload image' });
 	}
 };
 

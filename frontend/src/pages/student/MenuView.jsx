@@ -37,7 +37,11 @@ export default function MenuView() {
 					{items.map((it) => (
 						<div key={it._id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
 							<div className="text-center mb-4">
-								<div className="text-4xl mb-2">🍕</div>
+								{it.imageUrl ? (
+									<img src={it.imageUrl} alt={it.name} className="w-full h-40 object-cover rounded-md mb-3 border border-gray-100" />
+								) : (
+									<div className="text-4xl mb-2">🍕</div>
+								)}
 								<h3 className="text-lg font-semibold text-gray-800 mb-2">{it.name}</h3>
 								<p className="text-green-600 font-bold text-xl">₹{it.price}</p>
 							</div>
