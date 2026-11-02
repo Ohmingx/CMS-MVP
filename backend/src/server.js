@@ -7,6 +7,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 
 const { connectToDatabase } = require('./utils/db');
+const { bootstrapUsers } = require('./utils/bootstrapUsers');
 
 // Routers
 const authRouter = require('./routes/auth.routes');
@@ -22,7 +23,10 @@ const app = express();
 app.use(helmet());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*', credentials: true }));
+app.use(cors({
+	origin: process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? false : '*'),
+	credentials: true,
+}));
 app.use(morgan('dev'));
 
 // Health check
@@ -36,8 +40,20 @@ app.use('/api/admin', adminRouter);
 app.use('/api/staff', staffRouter);
 app.use('/api', sharedRouter);
 
-// Static frontend serving has been removed. 
-// In production, an Nginx reverse proxy handles static assets and routes /api to this server.
+if (process.env.NODE_ENV === 'production') {
+	const frontendPath = path.resolve(__dirname, '../../frontend/dist');
+	const frontendIndex = path.join(frontendPath, 'index.html');
+
+	if (fs.existsSync(frontendIndex)) {
+		app.use(express.static(frontendPath));
+		app.use((req, res, next) => {
+			if (req.method !== 'GET' || req.path === '/health' || req.path === '/api' || req.path.startsWith('/api/')) {
+				return next();
+			}
+			return res.sendFile(frontendIndex);
+		});
+	}
+}
 
 // Global error handler
 // eslint-disable-next-line no-unused-vars
@@ -51,7 +67,14 @@ const PORT = process.env.PORT || 5000;
 
 async function start() {
 	try {
-		await connectToDatabase(process.env.MONGODB_URI || 'mongodb://localhost:27017/canteen_db');
+		if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+			throw new Error('JWT_SECRET is required in production');
+		}
+		const databaseUri = process.env.MONGODB_URI || (
+			process.env.NODE_ENV === 'production' ? undefined : 'mongodb://localhost:27017/canteen_db'
+		);
+		await connectToDatabase(databaseUri);
+		await bootstrapUsers();
 		app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 	} catch (error) {
 		console.error('Failed to start server', error);

@@ -11,9 +11,11 @@ function signToken(user) {
 
 exports.register = async (req, res) => {
 	try {
-		const { username, password, role } = req.body;
-		if (!username || !password || !role) return res.status(400).json({ message: 'Missing fields' });
-		if (!['student', 'staff', 'admin'].includes(role)) return res.status(400).json({ message: 'Invalid role' });
+		const { username, password } = req.body;
+		if (!username || !password) return res.status(400).json({ message: 'Missing fields' });
+		if (req.body.role && req.body.role !== 'student') {
+			return res.status(403).json({ message: 'Staff and admin accounts are managed by the system administrator' });
+		}
 		
 		// Validate email format
 		if (!username.endsWith('@vit.edu.in')) {
@@ -22,7 +24,7 @@ exports.register = async (req, res) => {
 		
 		const existing = await User.findOne({ username });
 		if (existing) return res.status(409).json({ message: 'Username taken' });
-		const user = await User.create({ username, password, role });
+		const user = await User.create({ username, password, role: 'student' });
 		const token = signToken(user);
 		return res.status(201).json({ token, user: { id: user._id, username: user.username, role: user.role } });
 	} catch (err) {

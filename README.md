@@ -35,4 +35,4 @@ npm run dev
 ```
 
 ## Deployment
-Please refer closely to the `DEPLOYMENT.md` guide for precise steps on how to deploy this manually to a bare-metal Ubuntu EC2 environment without needing Docker, Jenkins, or Ansible.
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for the free-tier Render + MongoDB Atlas deployment path and its limitations.

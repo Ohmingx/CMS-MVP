@@ -1,137 +1,47 @@
-# Bare-Metal EC2 Deployment Guide (Ubuntu)
+# CMS-MVP Deployment
 
-This guide provides exactly what you need to deploy the two-folder frontend/backend monolith on a single Ubuntu instance manually, without Docker or complex pipelines.
+The recommended demonstration deployment uses one Render Node web service for the Vite frontend and Express API, with MongoDB Atlas M0 for persistent application data. The frontend calls the API at `/api`, so it remains same-origin and does not require CORS configuration.
 
-## 1. Initial Server Setup (Installing Node & Nginx)
+## Free-tier trade-offs
 
-Connect to your Ubuntu EC2 instance, then run these commands to install Nginx and Node.js:
+- Render Free web services spin down after 15 minutes without traffic and can take about a minute to start again. Free services have no production SLA, and Render may suspend use after free monthly limits are reached.
+- Render's local filesystem is ephemeral. Do not store application data or uploads there.
+- MongoDB Atlas M0 provides 512 MB storage and is intended for learning/development workloads; it has no production SLA.
+- Menu image upload requires the existing AWS S3 integration to be configured. Without S3, use an existing image URL in menu management; the API does not store uploaded files on Render.
+- Configure a spending limit and do not add a payment method unless you intentionally accept possible charges.
 
-```bash
-# Update packages
-sudo apt update
-sudo apt upgrade -y
+Provider details: [Render Free instances](https://render.com/docs/free) and [MongoDB Atlas pricing](https://www.mongodb.com/pricing).
 
-# Install Nginx
-sudo apt install -y nginx
+## Deploy with Render Blueprint
 
-# Install Node.js (via NodeSource for v20)
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs
+1. Create a MongoDB Atlas account and an **M0 Free** cluster. Create a dedicated database user and database, then copy the connection URI. Use a strong unique database password and replace any URI-reserved characters with percent-encoded values.
+2. In Atlas Network Access, allow the Render service to connect. Render Free does not provide a fixed outbound IP; if an allow-all entry (`0.0.0.0/0`) is required, use a unique strong database password and never reuse it elsewhere.
+3. In Render, choose **New → Blueprint**, connect `Ohmingx/CMS-MVP`, and select the repository's `render.yaml`.
+4. Configure the prompted `MONGODB_URI` with the Atlas URI (include a database name such as `canteen_db`). Set `BOOTSTRAP_ADMIN_USERNAME` and `BOOTSTRAP_ADMIN_PASSWORD` to a synthetic demonstration account. Optional staff account variables can provision a staff account as well. Use a VIT-formatted username ending in `@vit.edu.in`; keep all passwords only in Render's environment settings.
+5. Render generates `JWT_SECRET`. Do not replace it with a checked-in value. Leave `CORS_ORIGIN` unset because the frontend and API share one origin.
+6. Deploy. Wait for the service health check at `/health` to pass, then open the Render URL and test registration/login and role-specific workflows.
 
-# Verify installations
-node -v
-npm -v
-nginx -v
+The bootstrap user is created on first successful startup if it does not already exist. On subsequent restarts the existing account is left unchanged. To rotate its password, update the user through an approved database administration process; changing the bootstrap environment value does not overwrite existing user passwords.
 
-# Install PM2 globally to keep the backend running forever
-sudo npm install -g pm2
-```
+## Optional image uploads
 
-## 2. Clone & Transfer the Project
+The image upload endpoint uses AWS S3. To enable it, configure `AWS_REGION`, `S3_BUCKET_NAME`, and AWS credentials using Render's secret environment settings. Grant the AWS identity only the required bucket permissions and configure the bucket's public-read access or a suitable CDN, since the current application stores and returns a public object URL. AWS may incur charges; do not enable this unless you have checked current pricing and limits.
 
-```bash
-# Navigate to home
-cd ~
+## Local development
 
-# Clone your repository (replace with your actual git URL)
-git clone https://github.com/Ohmingx/CMS-MVP.git
-
-# Enter the project root
-cd CMS-MVP
-```
-
-## 3. Install Dependencies & Build Frontend
-
-Because this is a pure two-folder architecture, you must initialize both independently.
-
-### Backend Initialization
-```bash
+```powershell
 cd backend
-npm install
-
-# Your .env should be populated with production values
-# If not, create it manually:
-# cp .env.example .env
-# nano .env (Make sure PORT=5000 and MONGODB_URI is your Atlas URI)
+npm ci
+Copy-Item .env.example .env
+npm run dev
 ```
 
-### Frontend Initialization & Build
-```bash
-cd ../frontend
-npm install
+Set `MONGODB_URI` in `backend/.env` to a local MongoDB instance or an Atlas URI, and set a non-empty local `JWT_SECRET`. In a second terminal:
 
-# Build the production static files
-npm run build
-```
-Once this finishes, you will see a `dist/` directory inside `frontend`. This contains your finalized static UI.
-
-## 4. Run the Backend Forever
-
-Once backend dependencies are installed and the `.env` is correct, use PM2 to start it.
-
-```bash
-# Ensure you are still in the backend directory
-cd ../backend
-
-# Start the Node.js backend using PM2
-pm2 start ecosystem.config.js
-
-# Ensure PM2 resurrects your app on a server reboot
-pm2 startup
-# (Run the command that PM2 output prompts you to execute)
-pm2 save
+```powershell
+cd frontend
+npm ci
+npm run dev
 ```
 
-## 5. Configure Nginx
-
-Nginx will serve the `frontend/dist` directory directly for high performance, and proxy any network calls starting with `/api` to the running PM2 backend on port 5000.
-
-1. Create a new Nginx configuration file:
-   ```bash
-   sudo nano /etc/nginx/sites-available/cms_mvp
-   ```
-
-2. Paste the following configuration Block:
-   ```nginx
-   server {
-       listen 80;
-       server_name _; # Change to domain name if you have one
-
-       # 1) Serve the frontend build
-       # Replace 'ubuntu' with your user name if different!
-       root /home/ubuntu/CMS-MVP/frontend/dist;
-       index index.html index.htm;
-
-       # Standard single-page application fallback routing
-       location / {
-           try_files $uri $uri/ /index.html;
-       }
-
-       # 2) Reverse Proxy to the Backend for API calls
-       location /api/ {
-           proxy_pass http://localhost:5000/api/;
-           proxy_http_version 1.1;
-           proxy_set_header Upgrade $http_upgrade;
-           proxy_set_header Connection 'upgrade';
-           proxy_set_header Host $host;
-           proxy_cache_bypass $http_upgrade;
-       }
-   }
-   ```
-
-3. Enable the config and restart Nginx:
-   ```bash
-   # Remove default Nginx config
-   sudo rm /etc/nginx/sites-enabled/default
-   
-   # Enable our new site
-   sudo ln -s /etc/nginx/sites-available/cms_mvp /etc/nginx/sites-enabled/
-   
-   # Check syntax
-   sudo nginx -t
-   
-   # Restart Nginx
-   sudo systemctl restart nginx
-   ```
-
-Your app is now fully deployed! Visit your instance's public IP address in the browser.
+Vite runs the frontend and the API defaults to same-origin `/api`; when using the separate Vite dev server, set `VITE_API_URL` to the backend API base URL in a frontend `.env.local` file (for example `http://localhost:5000/api`). The backend permits cross-origin requests during development. Never commit `.env` files.

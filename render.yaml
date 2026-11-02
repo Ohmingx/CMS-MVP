@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: cms-mvp
+    runtime: node
+    plan: free
+    buildCommand: npm ci --prefix backend && npm ci --include=dev --prefix frontend && npm run build --prefix frontend
+    startCommand: npm start --prefix backend
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MONGODB_URI
+        sync: false
+      - key: BOOTSTRAP_ADMIN_USERNAME
+        sync: false
+      - key: BOOTSTRAP_ADMIN_PASSWORD
+        sync: false
+      - key: BOOTSTRAP_STAFF_USERNAME
+        sync: false
+      - key: BOOTSTRAP_STAFF_PASSWORD
+        sync: false
